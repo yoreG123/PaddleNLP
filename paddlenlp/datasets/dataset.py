@@ -63,20 +63,26 @@ datasets.load_dataset = load_from_ppnlp
 
 class DatasetTuple:
     def __init__(self, splits):
-        self.tuple_cls = namedtuple('datasets', splits)
-        self.tuple = self.tuple_cls(* [None for _ in splits])
+        self.identifier_map, identifiers = self._gen_identifier_map(splits)
+        self.tuple_cls = namedtuple('datasets', identifiers)
+        self.tuple = self.tuple_cls(*[None for _ in splits])
 
     def __getitem__(self, key):
         if isinstance(key, (int, slice)):
             return self.tuple[key]
         if isinstance(key, str):
-            return getattr(self.tuple, key)
-
-    def __repr__(self):
-        return self.tuple.__repr__()
+            return getattr(self.tuple, self.identifier_map[key])
 
     def __setitem__(self, key, value):
-        self.tuple = self.tuple._replace(**{key: value})
+        self.tuple = self.tuple._replace(**{self.identifier_map[key]: value})
+
+    def _gen_identifier_map(self, splits):
+        identifier_map = {}
+        identifiers = []
+        for i in range(len(splits)):
+            identifiers.append('splits_' + str(i))
+            identifier_map[splits[i]] = 'splits_' + str(i)
+        return identifier_map, identifiers
 
     def __len__(self):
         return len(self.tuple)
@@ -115,7 +121,7 @@ def load_from_hf(path, name=None, splits=None, **kwargs):
     else:
         label_list = []
         if isinstance(hf_datasets, DatasetDict):
-            datasets = DatasetTuple(hf_datasets.keys())
+            datasets = DatasetTuple(list(hf_datasets.keys()))
             for split, ds in hf_datasets.items():
                 for feature in ds.features.values():
                     if isinstance(feature, ClassLabel):
